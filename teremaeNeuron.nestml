@@ -1,0 +1,63 @@
+neuron teremaeNeuron:
+
+  initial_values:
+    v mV = vL
+  end
+
+  equations:
+    shape gE = exp(-t / tau_e) # integrated dirac equivalently an exponential w/ spike input
+    shape gI = exp(-t / tau_i)
+    # main voltage integration equation:
+    v' = - (v - vL) / tau_m - .0098 * convolve(gE,exc_spikes) * (v - vE) + convolve(gI,inh_spikes) * (v - vL)
+    # PROBLEM HERE IS THAT the second VL IS SUPPOSED TO BE vI (typo in the manuscript)
+  end
+
+  parameters:
+    # voltage dynamics
+    tau_m ms = 20.0 ms # (for exc!)
+    vL mV = -70.0 mV
+    vE mV = 0.0 mV
+    vI mV = -80.0 mV
+    vTh mV = -50.0 mV
+    vReset mV = -60.0 mV
+    rPeriod ms = 1.0 ms
+    # current dynamics
+    tau_e ms = 2.0 ms
+    tau_i ms = 2.0 ms
+  end
+
+  internals:
+    rSteps integer = steps(rPeriod)
+  end
+
+  state:
+    r integer = 0 # the ticks for refractory period counting
+  end
+
+  input:
+    exc_spikes 1/ms  <- excitatory spike
+    inh_spikes 1/ms  <- inhibitory spike
+    I_stim mV <- current
+  end
+
+  output: spike
+
+  update:
+    if r == 0: # neuron not refractory
+      integrate_odes()
+    else: # neuron is absolute refractory
+      r = r - 1
+      v = vReset # lock voltage at reset
+    end
+
+    if v >= vTh: # threshold crossing
+      # A supra-threshold membrane potential should never be observable.
+      # The reset at the time of threshold crossing enables accurate
+      # integration independent of the computation step size
+      r = rSteps
+      v = vReset
+      emit_spike()
+    end
+  end
+
+end
